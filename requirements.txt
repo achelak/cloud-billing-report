@@ -3,3 +3,5 @@ google-cloud-bigquery==3.4.0
 Jinja2==2.11.3
 python-dateutil==2.8.1
 markupsafe==2.0.1
+slack-sdk==3.24.0
+dashtable==1.2.9

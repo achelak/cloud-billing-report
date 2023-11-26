@@ -1,6 +1,7 @@
 """
 Summarizes given billing data for a cloud platform as a .eml printed to stdout.
 """
+import os
 import argparse
 import collections
 import csv
@@ -49,13 +50,18 @@ from src.report_resource import (
     report_resource,
 )
 
+from channels.slack import SlackNotificator
+
+from dashtable import html2rst
+
 
 class Report:
     UNTAGGED = '(untagged)'
 
-    def __init__(self, *, platform: str, date: datetime.date, config_path: str):
+    def __init__(self, *, platform: str, date: datetime.date, config_path: str, formatting: str = 'html'):
         self.platform = platform
         self.date = date
+        self.formatting = formatting
 
         with open(config_path, 'r') as config_json:
             self._config = json.load(config_json)[platform]
@@ -149,6 +155,20 @@ class Report:
         body = tmpl.render(report_date=report_date, **template_vars)
         msg.set_content(body, subtype='html')
         return msg.as_string()
+
+    def render_ascii(self,
+                     report_date: datetime.date,
+                     **template_vars) -> tuple:
+
+        tmpl_by_project = self.jinja_env.get_template(f'{self.platform}_report_ascii_by_project.html')
+        tmpl_by_service = self.jinja_env.get_template(f'{self.platform}_report_ascii_by_service.html')
+        html_table_by_project = tmpl_by_project.render(report_date=report_date, **template_vars)
+        html_table_by_service = tmpl_by_service.render(report_date=report_date, **template_vars)
+        ascii_table_by_project = str(html_table_by_project).replace('=\n', '')
+        ascii_table_by_service = str(html_table_by_service).replace('=\n', '')
+
+        return html2rst(ascii_table_by_project, force_headers=False), html2rst(ascii_table_by_service, force_headers=False)
+
 
     def render_personalized_email(self,
                                   report_date: datetime.date,
@@ -602,30 +622,24 @@ class AWSReport(Report):
                                          k not in managedAccounts}
 
         # Render the email using Jinja
-        return self.render_email(
-            yesterday,
-            self.email_recipients,
-            accountTotalsMonthly=totalsByAccountMonthly,
-            accountTotalsDaily=totalsByAccountDaily,
-            serviceTotalsMonthly=totalsByServiceMonthly,
-            serviceUsageTypesMonthly=usageTypeSummaryMonthly,
-            accountServicesMonthly=accountSummaryMonthly,
-            accountServicesDaily=accountSummaryDaily,
-            resourceSummaryMonthly=resourceSummaryMonthly,
-            s3StorageSummaryMonthly=s3StorageSummaryMonthly,
-            userCostSummaryMonthly=userCostSummaryMonthly,
-            totalUserCostMonthly=totalUserCostMonthly,
-            totalsByManagedAccountMonthly=totalsByManagedAccountMonthly,
-            totalsByManagedAccountDaily=totalsByManagedAccountDaily,
-            totalsByUnmanagedAccountMonthly=totalsByUnmanagedAccountMonthly,
-            totalsByUnmanagedAccountDaily=totalsByUnmanagedAccountDaily
-        )
+        return self.render_email(yesterday, accountTotalsMonthly=totalsByAccountMonthly,
+                                 accountTotalsDaily=totalsByAccountDaily, serviceTotalsMonthly=totalsByServiceMonthly,
+                                 serviceUsageTypesMonthly=usageTypeSummaryMonthly,
+                                 accountServicesMonthly=accountSummaryMonthly, accountServicesDaily=accountSummaryDaily,
+                                 resourceSummaryMonthly=resourceSummaryMonthly,
+                                 s3StorageSummaryMonthly=s3StorageSummaryMonthly,
+                                 userCostSummaryMonthly=userCostSummaryMonthly,
+                                 totalUserCostMonthly=totalUserCostMonthly,
+                                 totalsByManagedAccountMonthly=totalsByManagedAccountMonthly,
+                                 totalsByManagedAccountDaily=totalsByManagedAccountDaily,
+                                 totalsByUnmanagedAccountMonthly=totalsByUnmanagedAccountMonthly,
+                                 totalsByUnmanagedAccountDaily=totalsByUnmanagedAccountDaily)
 
 
 class GCPReport(Report):
 
-    def __init__(self, config_path: str, date: datetime.date):
-        super().__init__(platform='gcp', config_path=config_path, date=date)
+    def __init__(self, config_path: str, date: datetime.date, formatting: str):
+        super().__init__(platform='gcp', config_path=config_path, date=date, formatting=formatting)
 
     def readTerraWorkspaces(self, path: str) -> Mapping:
         try:
@@ -644,7 +658,7 @@ class GCPReport(Report):
             id = row['id']
             row['created_by'] = terra_workspaces[id]['createdBy'] if id in terra_workspaces and 'createdBy' in terra_workspaces[id] else 'Unowned'
 
-    def generateBetterReport(self) -> str:
+    def generateBetterReport(self) -> tuple:
         terra_workspaces = self.readTerraWorkspaces(self.terra_workspaces_path)
         client = bigquery.Client()
         query_month = self.date.strftime('%Y%m')
@@ -666,7 +680,13 @@ class GCPReport(Report):
         rows = list(query_job.result())
         rows = [dict(row) for row in rows]
         self.addCreatedByToRows(rows, terra_workspaces)
-        return self.render_email(self.date, self.email_recipients, rows=rows, cost_cutoff=self.cost_cutoff(), terra_workspaces=terra_workspaces)
+
+        if self.formatting == 'html':
+            return self.render_email(self.date, rows=rows, cost_cutoff=self.cost_cutoff(),
+                                     terra_workspaces=terra_workspaces), None
+        elif self.formatting == 'ascii':
+            return self.render_ascii(self.date, rows=rows, cost_cutoff=self.cost_cutoff(),
+                                     terra_workspaces=terra_workspaces)
 
     def cost_cutoff(self) -> float:
         # cost cutoff is $1 on all days but friday, when it effectively does not exist
@@ -853,11 +873,17 @@ if __name__ == '__main__':
     parser.add_argument('--terra-workspaces',
                         default=None,
                         help='Path to json file containing Terra workspace information.')
+    parser.add_argument('--formatting', default=None,
+                        help='Return main table in ascii format.')
     arguments = parser.parse_args()
 
     if arguments.report_type == "gcp":
         arguments.report_date = (datetime.datetime.now() - datetime.timedelta(days=2)).strftime(date_format)
 
     date = datetime.datetime.strptime(arguments.report_date, date_format).date()
-    report = report_types[arguments.report_type](arguments.config, date)
-    print(report.generateBetterReport())
+    report = report_types[arguments.report_type](arguments.config, date, arguments.formatting)
+
+    ascii_tables = report.generateBetterReport()
+
+    send_not = SlackNotificator(os.environ.get("SLACK_BOT_TOKEN"), os.environ.get("SLACK_CHANNEL_ID"), ascii_tables)
+    send_not.send_message()
