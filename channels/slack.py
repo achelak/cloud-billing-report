@@ -11,7 +11,7 @@ class SlackNotificator:
         self.ascii_report_table_by_service = ascii_report_tables[1]
         self.report_date = report_date
         self.by_project_title = f"💸 *Billing Report for Google Cloud Services per Project* 📊\nReport for the *{self.report_date}*, (for month / for yesterday). Sorted by month price."
-        self.by_service_title = f"💸 *Billing Report for Google Cloud Services per Service* 📊\nReport for the *{self.report_date}*, (for month). Sorted by service price."
+        self.by_service_title = f"💸 *Billing Report for Google Cloud Services per Service* 📊\nReport for the *{self.report_date}*, (for month / for yesterday). Sorted by month price."
 
     def send_message(self):
         self.chunk_message(self.ascii_report_table_by_project, self.by_project_title)

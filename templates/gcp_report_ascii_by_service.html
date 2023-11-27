@@ -4,6 +4,7 @@
         <tr>
             <th>Service</th>
             <th>{{ report_date|ym }}</th>
+            <th>{{ report_date|ymd }}</th>
         </tr>
         </thead>
         <tbody>
@@ -18,12 +19,14 @@
                 <tr>
                     <td><a href='#{{ service|to_service_id }}'>{{ service }}</a></td>
                     <td>{{ month_cost|print_amount }}</td>
+                    <td>{{ today_cost|print_diff }}</td>
                 </tr>
               {%- endif -%}
             {% endfor %}
             <tr>
                 <td>Total</td>
                 <td>{{ month_total|print_amount }}</td>
+                <td>{{ today_total|print_amount }}</td>
             </tr>
           {%- endif -%}
         {% endfor %}
