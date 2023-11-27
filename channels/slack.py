@@ -19,8 +19,22 @@ class SlackNotificator:
 
     def chunk_message(self, table: str, title: str):
         all_lines = table.split('\n')
-        all_lines = [line for line in all_lines if "Unowned" not in line]
-        first_30_lines = all_lines[:30]
+        filtered_lines = []
+
+        skip_line = False
+        for line in all_lines:
+            if skip_line:
+                skip_line = False
+                continue
+
+            if all(char.isspace() or char == '|' for char in line):
+                skip_line = True
+                continue
+
+            filtered_lines.append(line)
+
+        first_30_lines = filtered_lines[:30]
+
         first_30_text = title + '\n```\n' + '\n'.join(first_30_lines) + '\n```'
 
         client = WebClient(token=self.slack_api_token)
