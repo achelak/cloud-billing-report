@@ -3,13 +3,15 @@ import os
 
 
 class SlackNotificator:
-    def __init__(self, slack_api_token: str = None, slack_channel_id: str = None, ascii_report_tables: tuple = None):
+    def __init__(self, slack_api_token: str = None, slack_channel_id: str = None, ascii_report_tables: tuple = None,
+                 report_date: str = None):
         self.slack_api_token = slack_api_token
         self.slack_channel_id = slack_channel_id
         self.ascii_report_table_by_project = ascii_report_tables[0]
         self.ascii_report_table_by_service = ascii_report_tables[1]
-        self.by_project_title = "💸 *Billing Report for Google Cloud Services per Project* 📊"
-        self.by_service_title = "💸 *Billing Report for Google Cloud Services per Service* 📊"
+        self.report_date = report_date
+        self.by_project_title = f"💸 *Billing Report for Google Cloud Services per Project* 📊\nReport for the *{self.report_date}*, (for month / for yesterday). Sorted by month price."
+        self.by_service_title = f"💸 *Billing Report for Google Cloud Services per Service* 📊\nReport for the *{self.report_date}*, (for month). Sorted by service price."
 
     def send_message(self):
         self.chunk_message(self.ascii_report_table_by_project, self.by_project_title)

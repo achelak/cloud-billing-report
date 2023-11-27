@@ -878,12 +878,13 @@ if __name__ == '__main__':
     arguments = parser.parse_args()
 
     if arguments.report_type == "gcp":
-        arguments.report_date = (datetime.datetime.now() - datetime.timedelta(days=2)).strftime(date_format)
+        arguments.report_date = (datetime.datetime.now() - datetime.timedelta(days=1)).strftime(date_format)
 
     date = datetime.datetime.strptime(arguments.report_date, date_format).date()
     report = report_types[arguments.report_type](arguments.config, date, arguments.formatting)
 
     ascii_tables = report.generateBetterReport()
 
-    send_not = SlackNotificator(os.environ.get("SLACK_BOT_TOKEN"), os.environ.get("SLACK_CHANNEL_ID"), ascii_tables)
+    send_not = SlackNotificator(os.environ.get("SLACK_BOT_TOKEN"), os.environ.get("SLACK_CHANNEL_ID"), ascii_tables,
+                                arguments.report_date)
     send_not.send_message()
