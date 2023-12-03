@@ -1,0 +1,29 @@
+{% block main %}
+    <table>
+        <thead>
+        <tr>
+            <th>Project Name</th>
+            <th>{{ report_date|ym }}</th>
+            <th>{{ report_date|ymd }}</th>
+        </tr>
+        </thead>
+        <tbody>
+        {% for id, cost_month, cost_today, project in rows|group_by('id', 'cost_month', 'cost_today', 'name')|sort_by(1) %}
+          {%- if cost_month >= cost_cutoff -%}
+            <tr>
+                <td><a href='#{{ id|to_project_id }}'>{{ project }}</a></td>
+                <td>{{ cost_month|print_amount }}</td>
+                <td>{{ cost_today|print_diff }}</td>
+            </tr>
+          {%- endif -%}
+        {% endfor %}
+        </tbody>
+        <tfoot>
+        <tr>
+            <td>Grand total</td>
+            <td>{{ rows|sum_key('cost_month')|print_amount }}</td>
+            <td>{{ rows|sum_key('cost_today')|print_amount }}</td>
+        </tr>
+        </tfoot>
+    </table>
+{% endblock main %}

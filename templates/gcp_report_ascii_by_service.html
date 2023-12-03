@@ -1,0 +1,35 @@
+{% block main %}
+    <table>
+        <thead>
+        <tr>
+            <th>Service</th>
+            <th>{{ report_date|ym }}</th>
+            <th>{{ report_date|ymd }}</th>
+        </tr>
+        </thead>
+        <tbody>
+        {% for created_by, month_total, today_total in rows|group_by('created_by', 'cost_month', 'cost_today')|sort_by(1) %}
+          {%- if month_total >= cost_cutoff and created_by -%}
+            <tr>
+                <td></td>
+                <td></td>
+            </tr>
+            {% for service, month_cost, today_cost in rows|filter_by(created_by=created_by)|group_by('description', 'cost_month', 'cost_today')|sort_by(1) %}
+              {%- if month_cost >= cost_cutoff -%}
+                <tr>
+                    <td><a href='#{{ service|to_service_id }}'>{{ service }}</a></td>
+                    <td>{{ month_cost|print_amount }}</td>
+                    <td>{{ today_cost|print_diff }}</td>
+                </tr>
+              {%- endif -%}
+            {% endfor %}
+            <tr>
+                <td>Total</td>
+                <td>{{ month_total|print_amount }}</td>
+                <td>{{ today_total|print_amount }}</td>
+            </tr>
+          {%- endif -%}
+        {% endfor %}
+        </tbody>
+    </table>
+{% endblock main %}
